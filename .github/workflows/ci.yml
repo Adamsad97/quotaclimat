@@ -1,25 +1,14 @@
-# Basic CI/CD pipeline.
-# Stages: install deps -> tests (split into 4 isolated jobs, see comment
-# below) -> lint -> security scan -> build the Docker image -> push it to
-# the registry (main branch only).
 name: CI
 
-# Déclencheurs : sur un push vers N'IMPORTE QUELLE branche (on veut voir les
-# erreurs avant de merger, pas juste au moment du merge) et sur les pull
-# requests. Seul le dernier job (push-image) est ensuite restreint à main.
 on:
   push:
     branches: ["**"]
   pull_request:
 
-# If you push again to the same branch while a run is still going, cancel
-# the older run instead of letting both finish — saves CI minutes.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-# Variables partagées par tous les jobs, pour ne changer une version qu'à un
-# seul endroit. REGISTRY/IMAGE_NAME servent uniquement au job push-image.
 env:
   PYTHON_VERSION: "3.12"
   POETRY_VERSION: "2.1.3"
@@ -39,16 +28,6 @@ jobs:
           poetry-version: ${{ env.POETRY_VERSION }}
 
   # Stage 2: run the test suite against a real Postgres database.
-  #
-  # Split into 4 isolated jobs instead of one "pytest test/" — mirrors what
-  # this repo's previous CI did, for a concrete reason found by trial and
-  # error: test_update_pg_keywords and stop_word both call drop_tables()
-  # (DROP TABLE) on a shared "keywords" table using a session-scoped DB
-  # connection (test/conftest.py). Run them in the same pytest process as
-  # other DB tests and a leftover open transaction can make DROP TABLE wait
-  # forever on a Postgres lock — that's exactly what hung this pipeline for
-  # 26+ minutes earlier. Running them in their own job = a fresh process,
-  # fresh connection, nothing to block on.
   test-update-pg-keywords:
     name: Run tests (update pg keywords)
     needs: install
@@ -76,8 +55,6 @@ jobs:
           pytest-args: "-k 'test_update_pg_keywords' test/"
           report-name: update-pg-keywords
 
-  # Same isolation reason as above — stop_word tests also call drop_tables()
-  # on the shared keywords table.
   test-stop-word:
     name: Run tests (stop word)
     needs: install
@@ -94,8 +71,6 @@ jobs:
           pytest-args: "-k 'stop_word' test/"
           report-name: stop-word
 
-  # Pure keyword-matching logic, no database involved — kept separate so it
-  # doesn't need to wait for a Postgres service at all.
   test-print-media:
     name: Run tests (print media)
     needs: install
@@ -110,10 +85,6 @@ jobs:
           pytest-args: "test/print_media/test_print_media_detect_keywords.py"
           report-name: print-media
 
-  # Everything else. Some of these tests (test/sitemap/test_scrap_html.py)
-  # fetch fixture pages over HTTP from localhost:8000 — the previous CI
-  # served them with an nginx container; here a plain Python static file
-  # server (pre-run) does the same job for the same mockwebsite/ fixtures.
   test-everything-else:
     name: Run tests (everything else)
     needs: install
@@ -147,11 +118,6 @@ jobs:
           poetry-version: ${{ env.POETRY_VERSION }}
 
       - name: Run ruff
-        # Non-blocking: this repo has never had a lint gate before, so it
-        # carries pre-existing style debt unrelated to this pipeline. We
-        # still want the report, just not a hard CI failure on legacy code.
-        # "|| true" keeps the step itself green (no red error annotation) —
-        # continue-on-error is kept too as a second safety net.
         run: poetry run ruff check . || true
         continue-on-error: true
 
@@ -168,11 +134,6 @@ jobs:
           poetry-version: ${{ env.POETRY_VERSION }}
 
       - name: Run bandit
-        # bandit = analyse statique de sécurité pour Python (détecte les
-        # patterns dangereux : eval(), secrets en dur, etc.) -f json -o pour
-        # produire le "scan code report" attendu comme livrable.
-        # "|| true" keeps the step itself green (no red error annotation) —
-        # continue-on-error is kept too as a second safety net.
         run: |
           poetry run pip install bandit
           poetry run bandit -r quotaclimat -f json -o bandit-report.json || true
@@ -187,8 +148,6 @@ jobs:
   # Stage 5: build the Docker image and scan it for known vulnerabilities
   build-image:
     name: Build Docker image
-    # On ne build l'image que si tests/lint/security-scan sont passés avant
-    # — inutile de construire une image sur du code qui a un problème.
     needs:
       - test-update-pg-keywords
       - test-stop-word
@@ -201,14 +160,9 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Build image
-        # Taggée avec le SHA du commit : chaque run produit une image
-        # identifiable et traçable, pas juste "latest" à chaque fois.
         run: docker build -t quotaclimat:${{ github.sha }} .
 
       - name: Scan image with Trivy
-        # Trivy = scanner de vulnérabilités connues (CVE) dans l'image
-        # buildée (dépendances système + Python). Produit le "Trivy report"
-        # attendu comme livrable.
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: quotaclimat:${{ github.sha }}
@@ -216,9 +170,6 @@ jobs:
           output: trivy-report.json
 
       - name: Generate VEX file from the Trivy report
-        # VEX (Vulnerability Exploitability eXchange) : dit, pour chaque CVE
-        # trouvée par Trivy, si elle affecte réellement le projet ou non.
-        # Voir scripts/generate_vex.py pour le détail.
         run: python3 scripts/generate_vex.py trivy-report.json vex.json
 
       - name: Upload Trivy + VEX report
@@ -235,8 +186,6 @@ jobs:
     needs: build-image
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    # Droits minimum nécessaires pour ce job : lire le code, écrire un
-    # package sur ghcr.io. Rien de plus (principe du moindre privilège).
     permissions:
       contents: read
       packages: write
@@ -244,7 +193,6 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Compute lowercase image name
-        # ghcr.io requires lowercase image names, GitHub repo names can be mixed case
         run: echo "IMAGE_NAME=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
 
       - name: Log in to GitHub Container Registry
@@ -255,8 +203,6 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push
-        # Deux tags : "latest" (toujours la dernière version de main) et le
-        # SHA du commit (pour pouvoir revenir précisément à une version).
         uses: docker/build-push-action@v7
         with:
           context: .
