@@ -26,14 +26,6 @@ from quotaclimat.data_processing.factiva.s3_to_postgre.extract_keywords_factiva 
 # ============================================================================
 
 
-def test_ci_detects_failure():
-    """Échec volontaire : vérifier que la CI échoue bien quand un test casse.
-
-    À retirer une fois le pipeline GitHub Actions confirmé en rouge.
-    """
-    assert False, "Échec volontaire pour vérifier que la CI détecte le test cassé"
-
-
 def test_overlapping_keywords_longest_match_only():
     """Test that only the longest keyword is kept when keywords overlap.
     
