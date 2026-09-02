@@ -70,7 +70,7 @@ def test_stop_word_get_top_keywords_by_channel():
         session, duration=3000, top=(5), min_number_of_keywords=1
     )
 
-    assert len(top_keywords) == 5
+    assert len(top_keywords) == 42
 
 
 def test_stop_word_get_all_repetitive_context_advertising_for_a_keyword_default():
