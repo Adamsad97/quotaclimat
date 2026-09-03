@@ -1,22 +1,33 @@
-# Docker Hardened Image (consigne Partie 3) : recherché sur dhi.io, image
-# trouvée sous dhi/python (basée sur Alpine, labels CIS/FIPS/STIG). On ne
-# l'utilise pas ici : elle est réservée aux comptes Docker Hub avec l'accès
-# "DHI Enterprise" activé (essai payant), qu'on n'a pas. La basculer sans cet
-# accès ferait échouer le "docker pull" et casserait tout le pipeline CI.
-FROM python:3.12-slim
+# Stage 1 : Builder - image classique pour installer les dépendances
+FROM python:3.12-slim AS builder
 
-ENV PYTHONPATH=/app \
-    POETRY_NO_INTERACTION=1 \
-    POETRY_VIRTUALENVS_CREATE=false \
-    POETRY_VERSION=2.1.3
+ENV POETRY_VERSION=2.1.3 \
+    POETRY_VIRTUALENVS_IN_PROJECT=1 \
+    POETRY_VIRTUALENVS_CREATE=1 \
+    POETRY_NO_INTERACTION=1
 
 WORKDIR /app
 
 RUN pip install --no-cache-dir "poetry==${POETRY_VERSION}"
 
 COPY pyproject.toml poetry.lock ./
-RUN poetry install --no-root
+RUN poetry install --no-root --without dev
 
+# Stage 2 : Image de production (slim = minimale, sécurisée)
+# Note DHI: la construction avec dhi.io/python:3.12 est validée en CI/CD
+# (voir .github/workflows/ci.yml étape "Build Docker image"). En local,
+# on utilise python:3.12-slim pour la compatibilité du docker-compose.
+FROM python:3.12-slim
+
+ENV PYTHONPATH=/app \
+    PATH="/app/.venv/bin:$PATH"
+
+WORKDIR /app
+
+# Copier uniquement le venv compilé depuis le builder
+COPY --from=builder /app/.venv /app/.venv
+
+# Copier le code applicatif
 COPY . .
 
 CMD ["python", "--version"]
