@@ -1,0 +1,22 @@
+apiVersion: 1
+groups:
+  - orgId: 1
+    name: 'Loki INFO Logs'
+    folder: 'Log Alerts'
+    interval: 1m
+    rules:
+      - uid: info-logs-rule
+        title: Demo Alert Triggered
+        condition: A
+        for: 1m
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 60
+              to: 0
+            datasourceUid: loki
+            model:
+              expr: 'sum(count_over_time({job="docker"}[1m])) > 0'
+              refId: A
+        noDataState: OK
+        execErrState: Error
