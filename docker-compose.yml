@@ -7,36 +7,52 @@ services:
       POSTGRES_DB: barometre
     ports:
       - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d barometre"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-  # Expose /metrics sur le port 8000 (Partie 2 de la consigne)
+  # Service metrics – construit avec Docker Hardened Image (DHI)
+  # dhi.io/python:3.12 = image sans shell, sans pip, surface d'attaque minimale.
+  # Le multi-stage build copie site-packages depuis un builder classique.
+  # PYTHONPATH expose les packages au Python DHI (/usr/bin/python3).
   metrics:
     build:
       context: .
       dockerfile: Dockerfile
+    environment:
+      PYTHONPATH: /app/.venv/lib/python3.12/site-packages
     command: python3 quotaclimat/monitoring/metrics_server.py
     ports:
       - "8000:8000"
+    restart: unless-stopped
 
-  # UI sur http://localhost:9090 - va chercher les métriques du service
-  # "metrics" toutes les 15s (voir monitoring/prometheus.yml)
+  # UI sur http://localhost:9090 – scrape toutes les 15s (voir prometheus.yml)
   prometheus:
     image: prom/prometheus:v3.1.0
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     ports:
       - "9090:9090"
+    restart: unless-stopped
 
-  # UI sur http://localhost:3000 (login: admin/admin) - datasource Prometheus
-  # et dashboard pré-chargés automatiquement (voir monitoring/grafana/)
+  # UI sur http://localhost:3000 – login: admin / admin
+  # Datasources (Prometheus + Loki) et dashboards pré-chargés automatiquement
   grafana:
     image: grafana/grafana:11.4.0
     volumes:
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./monitoring/grafana/dashboards:/etc/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
     ports:
       - "3000:3000"
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+      - loki
 
-  # Loki : Système d'agrégation de logs
+  # Loki – agrégation et stockage des logs (http://localhost:3100)
   loki:
     image: grafana/loki:3.3.0
     ports:
@@ -45,8 +61,9 @@ services:
     volumes:
       - ./monitoring/loki-config.yaml:/etc/loki/local-config.yaml:ro
       - loki_data:/loki
+    restart: unless-stopped
 
-  # Promtail : Agent pour collecter et envoyer les logs vers Loki
+  # Promtail – collecte les logs Docker et les envoie à Loki
   promtail:
     image: grafana/promtail:3.3.0
     volumes:
@@ -56,7 +73,8 @@ services:
     command: -config.file=/etc/promtail/config.yml
     depends_on:
       - loki
+    restart: unless-stopped
 
 volumes:
   loki_data:
-
+  grafana_data:

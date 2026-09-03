@@ -1,4 +1,10 @@
-# L’Observatoire des médias sur l’écologie (OME) [![CI](https://github.com/Adamsad97/quotaclimat/actions/workflows/ci.yml/badge.svg)](https://github.com/Adamsad97/quotaclimat/actions/workflows/ci.yml)
+# L'Observatoire des médias sur l'écologie (OME)
+
+[![CI](https://github.com/Adamsad97/quotaclimat/actions/workflows/ci.yml/badge.svg)](https://github.com/Adamsad97/quotaclimat/actions/workflows/ci.yml)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/Adamsad97/quotaclimat/badge)](https://scorecard.dev/viewer/?uri=github.com/Adamsad97/quotaclimat)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/10000/badge)](https://www.bestpractices.dev/projects/10000)
+[![Docker](https://img.shields.io/badge/Docker-Hardened%20Image-blue?logo=docker)](https://dhi.io)
+
 
 > ⚠️ **Note DevOps (à jour au 2026-08-29)** : l'ancienne infrastructure (`docker-compose.yml`, ses services `metabase`/`ingest_to_db`/`mediatree`/`nginx`/`testconsole`, le déploiement Scaleway, `docker-entrypoint.sh`) a été retirée pour reconstruire le DevOps du projet. Certaines commandes `docker compose up ...` plus bas dans ce document (Docker, Test, Deploy, et des exemples dans les sections dbt/mediatree/labelstudio) datent d'avant ce changement et ne fonctionnent plus telles quelles. Le contenu métier qu'elles illustrent reste valable, seule l'exécution via ces services a changé.
 

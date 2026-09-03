@@ -1,15 +1,14 @@
 {
-  "title": "QuotaClimat - Observabilité",
+  "title": "QuotaClimat – Observabilité Complète",
   "uid": "quotaclimat",
   "schemaVersion": 39,
   "refresh": "10s",
   "time": { "from": "now-30m", "to": "now" },
-  "tags": ["quotaclimat", "monitoring"],
+  "tags": ["quotaclimat", "monitoring", "business"],
   "panels": [
     {
       "id": 1,
       "title": "🟢 Services UP / DOWN",
-      "description": "1 = service actif, 0 = service down",
       "type": "stat",
       "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
@@ -24,74 +23,105 @@
     },
     {
       "id": 2,
-      "title": "💓 Heartbeat total (compteur applicatif)",
-      "description": "Nombre de battements depuis le démarrage — prouve que l'app tourne",
+      "title": "📰 Articles analysés (total)",
       "type": "stat",
       "gridPos": { "x": 6, "y": 0, "w": 6, "h": 4 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "options": { "colorMode": "value", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
-      "targets": [{ "expr": "quotaclimat_heartbeat_total", "refId": "A" }]
+      "fieldConfig": { "defaults": { "unit": "short", "color": { "fixedColor": "blue", "mode": "fixed" } } },
+      "targets": [{ "expr": "sum(quotaclimat_articles_analyzed_total)", "legendFormat": "Articles", "refId": "A" }]
     },
     {
       "id": 3,
-      "title": "📈 Taux de heartbeat (battements/min)",
-      "description": "Doit être ≈ 12/min (1 toutes les 5s)",
-      "type": "timeseries",
-      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 4 },
+      "title": "🔑 Mots-clés détectés (total)",
+      "type": "stat",
+      "gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "palette-classic" } } },
-      "targets": [{ "expr": "rate(quotaclimat_heartbeat_total[1m]) * 60", "legendFormat": "heartbeats/min", "refId": "A" }]
+      "options": { "colorMode": "value", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "fieldConfig": { "defaults": { "unit": "short", "color": { "fixedColor": "green", "mode": "fixed" } } },
+      "targets": [{ "expr": "sum(quotaclimat_keywords_found_total)", "legendFormat": "Mots-clés", "refId": "A" }]
     },
     {
       "id": 4,
-      "title": "🧠 Mémoire RSS du processus",
-      "description": "Mémoire physique utilisée par le serveur de métriques",
-      "type": "timeseries",
-      "gridPos": { "x": 0, "y": 4, "w": 12, "h": 6 },
+      "title": "📡 Chaînes actives",
+      "type": "gauge",
+      "gridPos": { "x": 18, "y": 0, "w": 6, "h": 4 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": { "defaults": { "unit": "bytes", "color": { "mode": "palette-classic" } } },
-      "targets": [{ "expr": "process_resident_memory_bytes", "legendFormat": "RSS Memory", "refId": "A" }]
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "minVizHeight": 75, "minVizWidth": 75 },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0, "max": 30, "unit": "short",
+          "thresholds": { "steps": [{ "value": 0, "color": "red" }, { "value": 10, "color": "yellow" }, { "value": 18, "color": "green" }] }
+        }
+      },
+      "targets": [{ "expr": "quotaclimat_channels_active", "legendFormat": "Chaînes", "refId": "A" }]
     },
     {
       "id": 5,
-      "title": "🔧 CPU utilisé (secondes cumulées)",
-      "description": "Temps CPU consommé par le processus Python",
+      "title": "📈 Articles analysés par source (débit/min)",
       "type": "timeseries",
-      "gridPos": { "x": 12, "y": 4, "w": 12, "h": 6 },
+      "gridPos": { "x": 0, "y": 4, "w": 12, "h": 7 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": { "defaults": { "unit": "s", "color": { "mode": "palette-classic" } } },
-      "targets": [{ "expr": "rate(process_cpu_seconds_total[1m])", "legendFormat": "CPU usage", "refId": "A" }]
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "fillOpacity": 20 } } },
+      "targets": [{ "expr": "rate(quotaclimat_articles_analyzed_total[2m]) * 60", "legendFormat": "{{source}}", "refId": "A" }]
     },
     {
       "id": 6,
-      "title": "🗂️ Fichiers ouverts (descripteurs)",
+      "title": "🌍 Mots-clés par thème (débit/min)",
       "type": "timeseries",
-      "gridPos": { "x": 0, "y": 10, "w": 12, "h": 6 },
+      "gridPos": { "x": 12, "y": 4, "w": 12, "h": 7 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": { "defaults": { "unit": "short" } },
-      "targets": [{ "expr": "process_open_fds", "legendFormat": "open FDs", "refId": "A" }]
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "fillOpacity": 20 } } },
+      "targets": [{ "expr": "rate(quotaclimat_keywords_found_total[2m]) * 60", "legendFormat": "{{theme}}", "refId": "A" }]
     },
     {
       "id": 7,
-      "title": "🐍 Garbage Collector Python (collections)",
-      "description": "Nombre de cycles GC par génération",
+      "title": "⏱️ Durée de traitement (p50 / p95 / p99)",
       "type": "timeseries",
-      "gridPos": { "x": 12, "y": 10, "w": 12, "h": 6 },
+      "gridPos": { "x": 0, "y": 11, "w": 12, "h": 6 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": { "defaults": { "unit": "short" } },
+      "fieldConfig": { "defaults": { "unit": "s" } },
       "targets": [
-        { "expr": "rate(python_gc_collections_total[1m])", "legendFormat": "GC gen {{generation}}", "refId": "A" }
+        { "expr": "histogram_quantile(0.50, rate(quotaclimat_processing_seconds_bucket[2m]))", "legendFormat": "p50", "refId": "A" },
+        { "expr": "histogram_quantile(0.95, rate(quotaclimat_processing_seconds_bucket[2m]))", "legendFormat": "p95", "refId": "B" },
+        { "expr": "histogram_quantile(0.99, rate(quotaclimat_processing_seconds_bucket[2m]))", "legendFormat": "p99", "refId": "C" }
       ]
     },
     {
       "id": 8,
-      "title": "📋 Logs Loki – tous les services",
-      "description": "Logs en temps réel de tous les conteneurs Docker",
+      "title": "🧠 Mémoire RSS du processus",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 11, "w": 12, "h": 6 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "bytes" } },
+      "targets": [{ "expr": "process_resident_memory_bytes", "legendFormat": "RSS Memory", "refId": "A" }]
+    },
+    {
+      "id": 9,
+      "title": "🔧 CPU utilisé (rate)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 17, "w": 12, "h": 5 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "percentunit" } },
+      "targets": [{ "expr": "rate(process_cpu_seconds_total[1m])", "legendFormat": "CPU", "refId": "A" }]
+    },
+    {
+      "id": 10,
+      "title": "💓 Heartbeat rate",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 17, "w": 12, "h": 5 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" } },
+      "targets": [{ "expr": "rate(quotaclimat_heartbeat_total[1m]) * 60", "legendFormat": "beats/min", "refId": "A" }]
+    },
+    {
+      "id": 11,
+      "title": "📋 Logs temps réel – tous les conteneurs Docker",
       "type": "logs",
-      "gridPos": { "x": 0, "y": 16, "w": 24, "h": 8 },
+      "gridPos": { "x": 0, "y": 22, "w": 24, "h": 8 },
       "datasource": { "type": "loki", "uid": "loki" },
-      "options": { "dedupStrategy": "none", "showTime": true, "wrapLogMessage": true },
-      "targets": [{ "expr": "{job=\"docker\"}", "legendFormat": "", "refId": "A" }]
+      "options": { "dedupStrategy": "none", "showTime": true, "wrapLogMessage": true, "sortOrder": "Descending" },
+      "targets": [{ "expr": "{job=\"docker\"}", "refId": "A" }]
     }
   ]
 }
