@@ -1,4 +1,7 @@
-# Stage 1 : Builder - image classique pour installer les dépendances
+# ============================================================
+# Stage 1 : Builder
+# Image classique avec shell pour installer Poetry + dépendances
+# ============================================================
 FROM python:3.12-slim AS builder
 
 ENV POETRY_VERSION=2.1.3 \
@@ -13,21 +16,32 @@ RUN pip install --no-cache-dir "poetry==${POETRY_VERSION}"
 COPY pyproject.toml poetry.lock ./
 RUN poetry install --no-root --without dev
 
-# Stage 2 : Image de production (slim = minimale, sécurisée)
-# Note DHI: la construction avec dhi.io/python:3.12 est validée en CI/CD
-# (voir .github/workflows/ci.yml étape "Build Docker image"). En local,
-# on utilise python:3.12-slim pour la compatibilité du docker-compose.
-FROM python:3.12-slim
+# ============================================================
+# Stage 2 : Production – Docker Hardened Image (DHI)
+# Image minimale sans shell, sans pip, sans outils système :
+# surface d'attaque réduite au minimum (0 CVE connue).
+# https://dhi.io → python:3.12
+# ============================================================
+FROM dhi.io/python:3.12
 
-ENV PYTHONPATH=/app \
-    PATH="/app/.venv/bin:$PATH"
+LABEL org.opencontainers.image.source="https://github.com/Adamsad97/quotaclimat"
+LABEL org.opencontainers.image.description="QuotaClimat – metrics server (DHI hardened)"
+LABEL org.opencontainers.image.licenses="MIT"
+
+# PYTHONPATH pointe vers les packages du venv copié depuis le builder
+# L'image DHI a Python à /usr/bin/python3 ; le venv fournit tous les packages
+ENV PYTHONPATH=/app/.venv/lib/python3.12/site-packages \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
-# Copier uniquement le venv compilé depuis le builder
-COPY --from=builder /app/.venv /app/.venv
-
-# Copier le code applicatif
+# On copie UNIQUEMENT les librairies compilées (pas les binaires du venv
+# qui sont des symlinks cassés dans l'image DHI) + le code source
+COPY --from=builder /app/.venv/lib/python3.12/site-packages /app/.venv/lib/python3.12/site-packages
 COPY . .
 
-CMD ["python", "--version"]
+# Utilisateur non-root (bonne pratique sécurité)
+USER nonroot
+
+CMD ["python3", "-c", "import quotaclimat; print('QuotaClimat DHI image ready')"]

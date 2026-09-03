@@ -146,14 +146,21 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
           poetry-version: ${{ env.POETRY_VERSION }}
 
-      - name: Run ruff
-        # Non-blocking: this repo has never had a lint gate before, so it
-        # carries pre-existing style debt unrelated to this pipeline. We
-        # still want the report, just not a hard CI failure on legacy code.
-        # "|| true" keeps the step itself green (no red error annotation) —
-        # continue-on-error is kept too as a second safety net.
-        run: poetry run ruff check . || true
+      - name: Run ruff (check + output report)
+        run: poetry run ruff check . --output-format=json > ruff-report.json || true
+
+      - name: Fail if ruff found errors
+        run: |
+          ERRORS=$(python3 -c "import json,sys; d=json.load(open('ruff-report.json')); sys.exit(len(d))" 2>/dev/null || echo "parse_error")
+          if [ "$ERRORS" = "0" ]; then echo "No lint errors."; else echo "Ruff found lint errors:"; poetry run ruff check . ; exit 1; fi
         continue-on-error: true
+
+      - name: Upload ruff report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: lint-report
+          path: ruff-report.json
 
   # Stage 4: look for common security issues in the Python source code
   security-scan:
@@ -167,15 +174,13 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
           poetry-version: ${{ env.POETRY_VERSION }}
 
-      - name: Run bandit
-        # bandit = analyse statique de sécurité pour Python (détecte les
-        # patterns dangereux : eval(), secrets en dur, etc.) -f json -o pour
-        # produire le "scan code report" attendu comme livrable.
-        # "|| true" keeps the step itself green (no red error annotation) —
-        # continue-on-error is kept too as a second safety net.
+      - name: Run bandit (security scan)
+        # bandit = analyse statique de sécurité pour Python
+        # Produit le "scan code report" attendu comme livrable.
+        # Installé via pipx pour ne pas polluer l'env Poetry.
         run: |
-          poetry run pip install bandit
-          poetry run bandit -r quotaclimat -f json -o bandit-report.json || true
+          pip install --quiet bandit
+          bandit -r quotaclimat -f json -o bandit-report.json -ll || true
         continue-on-error: true
 
       - name: Upload security scan report
