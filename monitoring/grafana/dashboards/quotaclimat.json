@@ -1,97 +1,29 @@
 {
-  "title": "QuotaClimat - Observabilité",
+  "title": "QuotaClimat - Metrics",
   "uid": "quotaclimat",
   "schemaVersion": 39,
-  "refresh": "10s",
-  "time": { "from": "now-30m", "to": "now" },
-  "tags": ["quotaclimat", "monitoring"],
+  "refresh": "5s",
+  "time": { "from": "now-15m", "to": "now" },
   "panels": [
     {
       "id": 1,
-      "title": "🟢 Services UP / DOWN",
-      "description": "1 = service actif, 0 = service down",
-      "type": "stat",
-      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "options": { "colorMode": "background", "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"] } },
-      "fieldConfig": {
-        "defaults": {
-          "thresholds": { "steps": [{ "value": 0, "color": "red" }, { "value": 1, "color": "green" }] },
-          "mappings": [{ "type": "value", "options": { "0": { "text": "DOWN" }, "1": { "text": "UP" } } }]
-        }
-      },
-      "targets": [{ "expr": "up", "legendFormat": "{{job}}", "refId": "A" }]
-    },
-    {
-      "id": 2,
-      "title": "💓 Heartbeat total (compteur applicatif)",
-      "description": "Nombre de battements depuis le démarrage — prouve que l'app tourne",
-      "type": "stat",
-      "gridPos": { "x": 6, "y": 0, "w": 6, "h": 4 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "options": { "colorMode": "value", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
-      "targets": [{ "expr": "quotaclimat_heartbeat_total", "refId": "A" }]
-    },
-    {
-      "id": 3,
-      "title": "📈 Taux de heartbeat (battements/min)",
-      "description": "Doit être ≈ 12/min (1 toutes les 5s)",
+      "title": "Heartbeat rate",
       "type": "timeseries",
-      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 4 },
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "palette-classic" } } },
-      "targets": [{ "expr": "rate(quotaclimat_heartbeat_total[1m]) * 60", "legendFormat": "heartbeats/min", "refId": "A" }]
-    },
-    {
-      "id": 4,
-      "title": "🧠 Mémoire RSS du processus",
-      "description": "Mémoire physique utilisée par le serveur de métriques",
-      "type": "timeseries",
-      "gridPos": { "x": 0, "y": 4, "w": 12, "h": 6 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": { "defaults": { "unit": "bytes", "color": { "mode": "palette-classic" } } },
-      "targets": [{ "expr": "process_resident_memory_bytes", "legendFormat": "RSS Memory", "refId": "A" }]
-    },
-    {
-      "id": 5,
-      "title": "🔧 CPU utilisé (secondes cumulées)",
-      "description": "Temps CPU consommé par le processus Python",
-      "type": "timeseries",
-      "gridPos": { "x": 12, "y": 4, "w": 12, "h": 6 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": { "defaults": { "unit": "s", "color": { "mode": "palette-classic" } } },
-      "targets": [{ "expr": "rate(process_cpu_seconds_total[1m])", "legendFormat": "CPU usage", "refId": "A" }]
-    },
-    {
-      "id": 6,
-      "title": "🗂️ Fichiers ouverts (descripteurs)",
-      "type": "timeseries",
-      "gridPos": { "x": 0, "y": 10, "w": 12, "h": 6 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": { "defaults": { "unit": "short" } },
-      "targets": [{ "expr": "process_open_fds", "legendFormat": "open FDs", "refId": "A" }]
-    },
-    {
-      "id": 7,
-      "title": "🐍 Garbage Collector Python (collections)",
-      "description": "Nombre de cycles GC par génération",
-      "type": "timeseries",
-      "gridPos": { "x": 12, "y": 10, "w": 12, "h": 6 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": { "defaults": { "unit": "short" } },
       "targets": [
-        { "expr": "rate(python_gc_collections_total[1m])", "legendFormat": "GC gen {{generation}}", "refId": "A" }
+        { "expr": "rate(quotaclimat_heartbeat_total[1m])", "refId": "A" }
       ]
     },
     {
-      "id": 8,
-      "title": "📋 Logs Loki – tous les services",
-      "description": "Logs en temps réel de tous les conteneurs Docker",
-      "type": "logs",
-      "gridPos": { "x": 0, "y": 16, "w": 24, "h": 8 },
-      "datasource": { "type": "loki", "uid": "loki" },
-      "options": { "dedupStrategy": "none", "showTime": true, "wrapLogMessage": true },
-      "targets": [{ "expr": "{job=\"docker\"}", "legendFormat": "", "refId": "A" }]
+      "id": 2,
+      "title": "Process memory (bytes)",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "process_resident_memory_bytes", "refId": "A" }
+      ]
     }
   ]
 }
