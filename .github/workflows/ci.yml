@@ -16,7 +16,6 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  # Stage 1: install dependencies (also warms the Poetry cache for later jobs)
   install:
     name: Install dependencies
     runs-on: ubuntu-latest
@@ -27,7 +26,6 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
           poetry-version: ${{ env.POETRY_VERSION }}
 
-  # Stage 2: run the test suite against a real Postgres database.
   test-update-pg-keywords:
     name: Run tests (update pg keywords)
     needs: install
@@ -52,8 +50,14 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           poetry-version: ${{ env.POETRY_VERSION }}
-          pytest-args: "-k 'test_update_pg_keywords' test/"
+          pytest-args: "--junitxml=report-update-pg-keywords.xml -k 'test_update_pg_keywords' test/"
           report-name: update-pg-keywords
+      - name: Upload test report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-report-update-pg-keywords
+          path: report-*.xml
 
   test-stop-word:
     name: Run tests (stop word)
@@ -68,8 +72,14 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           poetry-version: ${{ env.POETRY_VERSION }}
-          pytest-args: "-k 'stop_word' test/"
+          pytest-args: "--junitxml=report-stop-word.xml -k 'stop_word' test/"
           report-name: stop-word
+      - name: Upload test report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-report-stop-word
+          path: report-*.xml
 
   test-print-media:
     name: Run tests (print media)
@@ -82,8 +92,14 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           poetry-version: ${{ env.POETRY_VERSION }}
-          pytest-args: "test/print_media/test_print_media_detect_keywords.py"
+          pytest-args: "--junitxml=report-print-media.xml test/print_media/test_print_media_detect_keywords.py"
           report-name: print-media
+      - name: Upload test report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-report-print-media
+          path: report-*.xml
 
   test-everything-else:
     name: Run tests (everything else)
@@ -98,14 +114,20 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           poetry-version: ${{ env.POETRY_VERSION }}
-          pre-run: "python3 -m http.server 8000 --directory mockwebsite &"
+          pre-run: "nohup python3 -m http.server 8000 --directory mockwebsite > /dev/null 2>&1 &"
           pytest-args: >-
+            --junitxml=report-everything-else.xml
             -k 'not test_update_pg_keywords and not stop_word'
             --ignore=test/print_media/test_print_media_detect_keywords.py
             test/
           report-name: everything-else
+      - name: Upload test report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-report-everything-else
+          path: report-*.xml
 
-  # Stage 3: check code style with ruff
   lint:
     name: Run linter
     needs: install
@@ -116,12 +138,10 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           poetry-version: ${{ env.POETRY_VERSION }}
-
       - name: Run ruff
-        run: poetry run ruff check . || true
+        run: poetry run ruff check .
         continue-on-error: true
 
-  # Stage 4: look for common security issues in the Python source code
   security-scan:
     name: Run security scan
     needs: install
@@ -132,20 +152,16 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           poetry-version: ${{ env.POETRY_VERSION }}
-
       - name: Run bandit
         run: |
           poetry run pip install bandit
-          poetry run bandit -r quotaclimat -f json -o bandit-report.json || true
-        continue-on-error: true
-
+          poetry run bandit -ll -r quotaclimat -f json -o bandit-report.json || true
       - name: Upload security scan report
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: security-scan-report
           path: bandit-report.json
 
-  # Stage 5: build the Docker image and scan it for known vulnerabilities
   build-image:
     name: Build Docker image
     needs:
@@ -158,29 +174,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-
       - name: Build image
         run: docker build -t quotaclimat:${{ github.sha }} .
-
       - name: Scan image with Trivy
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: quotaclimat:${{ github.sha }}
           format: json
           output: trivy-report.json
-
-      - name: Generate VEX file from the Trivy report
+      - name: Generate VEX file
         run: python3 scripts/generate_vex.py trivy-report.json vex.json
-
       - name: Upload Trivy + VEX report
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: trivy-vex-report
           path: |
             trivy-report.json
             vex.json
 
-  # Stage 6: push the image to the registry, but only from the main branch
   push-image:
     name: Push to registry
     needs: build-image
@@ -191,19 +202,16 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v7
-
       - name: Compute lowercase image name
         run: echo "IMAGE_NAME=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
-
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v4
+        uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Build and push
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@v5
         with:
           context: .
           push: true

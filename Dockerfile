@@ -1,22 +1,23 @@
-# Docker Hardened Image (consigne Partie 3) : recherché sur dhi.io, image
-# trouvée sous dhi/python (basée sur Alpine, labels CIS/FIPS/STIG). On ne
-# l'utilise pas ici : elle est réservée aux comptes Docker Hub avec l'accès
-# "DHI Enterprise" activé (essai payant), qu'on n'a pas. La basculer sans cet
-# accès ferait échouer le "docker pull" et casserait tout le pipeline CI.
-FROM python:3.12-slim
+FROM python:3.12-slim AS builder
 
-ENV PYTHONPATH=/app \
-    POETRY_NO_INTERACTION=1 \
-    POETRY_VIRTUALENVS_CREATE=false \
+ENV POETRY_NO_INTERACTION=1 \
+    POETRY_VIRTUALENVS_IN_PROJECT=1 \
+    POETRY_VIRTUALENVS_CREATE=1 \
+    POETRY_CACHE_DIR=/tmp/poetry_cache \
     POETRY_VERSION=2.1.3
 
 WORKDIR /app
 
 RUN pip install --no-cache-dir "poetry==${POETRY_VERSION}"
-
 COPY pyproject.toml poetry.lock ./
 RUN poetry install --no-root
 
+FROM dhi.io/python:3.12
+
+ENV PYTHONPATH=/app/.venv/lib/python3.12/site-packages
+WORKDIR /app
+COPY --from=builder /app/.venv/lib/python3.12/site-packages /app/.venv/lib/python3.12/site-packages
 COPY . .
 
-CMD ["python", "--version"]
+USER nonroot
+CMD ["python3", "-m", "quotaclimat.monitoring.metrics_server"]
