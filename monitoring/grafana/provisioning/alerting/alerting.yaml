@@ -1,0 +1,17 @@
+apiVersion: 1
+
+contactPoints:
+  - orgId: 1
+    name: email-contact-point
+    receivers:
+      - uid: email-1
+        type: email
+        settings:
+          addresses: '${ALERT_RECIPIENT_EMAIL}'
+          subject: '[ALERTE DEMO] Logs détectés !'
+          message: 'Une alerte a été déclenchée pendant la soutenance !'
+
+policies:
+  - orgId: 1
+    receiver: email-contact-point
+
